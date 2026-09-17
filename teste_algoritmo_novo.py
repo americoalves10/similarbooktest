@@ -15,9 +15,10 @@ ARQUIVO = "books_enriquecidos_final_corrigido.csv"
 QUANTIDADE_RECOMENDACOES = 10
 NUMERO_CANDIDATOS = 100
 
-PESO_SIMILARIDADE = 0.70
-PESO_QUALIDADE = 0.20
-PESO_POPULARIDADE = 0.10
+PESO_SIMILARIDADE = 0.60
+PESO_QUALIDADE = 0.15
+PESO_POPULARIDADE = 0.05
+PESO_GENERO = 0.20
 
 
 # ============================================================
@@ -74,7 +75,9 @@ def normalizar_titulo(titulo):
     return titulo.strip()
 
 
-df["titulo_normalizado"] = df["title"].apply(normalizar_titulo)
+df["titulo_normalizado"] = df["title"].apply(
+    normalizar_titulo
+)
 
 
 # ============================================================
@@ -97,9 +100,13 @@ vectorizer = TfidfVectorizer(
     max_features=50000
 )
 
-X = vectorizer.fit_transform(df["texto_modelo"])
+X = vectorizer.fit_transform(
+    df["texto_modelo"]
+)
 
-print(f"Características criadas: {X.shape[1]}")
+print(
+    f"Características criadas: {X.shape[1]}"
+)
 
 
 # ============================================================
@@ -138,7 +145,8 @@ max_popularidade = df["popularidade"].max()
 if max_popularidade > 0:
 
     df["popularidade"] = (
-        df["popularidade"] / max_popularidade
+        df["popularidade"]
+        / max_popularidade
     )
 
 else:
@@ -147,7 +155,7 @@ else:
 
 
 # ============================================================
-# 8. ENCONTRAR LIVRO
+# 8. ENCONTRAR LIVRO PELO TÍTULO
 # ============================================================
 
 def encontrar_livro(titulo_busca):
@@ -157,14 +165,37 @@ def encontrar_livro(titulo_busca):
     resultados = df[
         df["title"]
         .str.lower()
-        .str.contains(busca, na=False)
+        .str.contains(
+            busca,
+            na=False
+        )
     ]
 
     return resultados
 
 
 # ============================================================
-# 9. RECOMENDAÇÃO
+# 9. ENCONTRAR LIVROS PELO GÊNERO
+# ============================================================
+
+def encontrar_genero(genero_busca):
+
+    busca = genero_busca.strip().lower()
+
+    resultados = df[
+        df["genero"]
+        .str.lower()
+        .str.contains(
+            busca,
+            na=False
+        )
+    ]
+
+    return resultados
+
+
+# ============================================================
+# 10. RECOMENDAÇÃO NORMAL PELO TÍTULO
 # ============================================================
 
 def recomendar_livros_hibrido(indice_livro):
@@ -183,9 +214,14 @@ def recomendar_livros_hibrido(indice_livro):
     # Encontrar livros semelhantes
     # --------------------------------------------------------
 
+    quantidade_vizinhos = min(
+        NUMERO_CANDIDATOS,
+        len(df)
+    )
+
     distancias, indices = modelo.kneighbors(
         X[indice_livro],
-        n_neighbors=NUMERO_CANDIDATOS
+        n_neighbors=quantidade_vizinhos
     )
 
     indices = indices[0]
@@ -193,28 +229,51 @@ def recomendar_livros_hibrido(indice_livro):
 
     candidatos = []
 
-    titulo_original = df.loc[indice_livro, "titulo_normalizado"]
+    titulo_original = df.loc[
+        indice_livro,
+        "titulo_normalizado"
+    ]
 
-    for indice, distancia in zip(indices, distancias):
+    for indice, distancia in zip(
+        indices,
+        distancias
+    ):
 
         # Não recomendar o próprio livro
         if indice == indice_livro:
             continue
 
         # Não recomendar título exatamente igual
-        if df.loc[indice, "titulo_normalizado"] == titulo_original:
+        if (
+            df.loc[
+                indice,
+                "titulo_normalizado"
+            ]
+            == titulo_original
+        ):
             continue
 
         similaridade_textual = 1 - distancia
 
-        qualidade = df.loc[indice, "qualidade"]
+        qualidade = df.loc[
+            indice,
+            "qualidade"
+        ]
 
-        popularidade = df.loc[indice, "popularidade"]
+        popularidade = df.loc[
+            indice,
+            "popularidade"
+        ]
 
         score_hibrido = (
-            similaridade_textual * PESO_SIMILARIDADE
-            + qualidade * PESO_QUALIDADE
-            + popularidade * PESO_POPULARIDADE
+            similaridade_textual
+            * PESO_SIMILARIDADE
+
+            + qualidade
+            * PESO_QUALIDADE
+
+            + popularidade
+            * PESO_POPULARIDADE
         )
 
         candidatos.append({
@@ -249,7 +308,10 @@ def recomendar_livros_hibrido(indice_livro):
 
         indice = candidato["indice"]
 
-        titulo = df.loc[indice, "titulo_normalizado"]
+        titulo = df.loc[
+            indice,
+            "titulo_normalizado"
+        ]
 
         if titulo in titulos_vistos:
             continue
@@ -258,12 +320,15 @@ def recomendar_livros_hibrido(indice_livro):
 
         recomendacoes.append(candidato)
 
-        if len(recomendacoes) >= QUANTIDADE_RECOMENDACOES:
+        if (
+            len(recomendacoes)
+            >= QUANTIDADE_RECOMENDACOES
+        ):
             break
 
 
     # ========================================================
-    # 10. MOSTRAR RESULTADO
+    # MOSTRAR RESULTADO
     # ========================================================
 
     print("\n" + "=" * 70)
@@ -280,15 +345,18 @@ def recomendar_livros_hibrido(indice_livro):
         livro_rec = df.loc[indice]
 
         print(
-            f"\n{posicao}. {livro_rec['title']}"
+            f"\n{posicao}. "
+            f"{livro_rec['title']}"
         )
 
         print(
-            f"   Autor: {livro_rec['authors']}"
+            f"   Autor: "
+            f"{livro_rec['authors']}"
         )
 
         print(
-            f"   Gênero: {livro_rec['genero']}"
+            f"   Gênero: "
+            f"{livro_rec['genero']}"
         )
 
         print(
@@ -310,17 +378,363 @@ def recomendar_livros_hibrido(indice_livro):
 
 
 # ============================================================
-# 11. INTERFACE PARA O USUÁRIO
+# 11. RECOMENDAÇÃO USANDO TÍTULO + GÊNERO
+# ============================================================
+
+def recomendar_por_titulo_e_genero(
+    indice_livro,
+    genero_busca
+):
+
+    livro = df.loc[indice_livro]
+
+    print("\n" + "=" * 70)
+    print("LIVRO SELECIONADO")
+    print("=" * 70)
+
+    print(f"Título : {livro['title']}")
+    print(f"Autor  : {livro['authors']}")
+    print(f"Gênero informado: {genero_busca}")
+
+    # --------------------------------------------------------
+    # Encontrar livros semelhantes ao título
+    # --------------------------------------------------------
+
+    quantidade_vizinhos = min(
+        NUMERO_CANDIDATOS,
+        len(df)
+    )
+
+    distancias, indices = modelo.kneighbors(
+        X[indice_livro],
+        n_neighbors=quantidade_vizinhos
+    )
+
+    indices = indices[0]
+    distancias = distancias[0]
+
+    candidatos = []
+
+    titulo_original = df.loc[
+        indice_livro,
+        "titulo_normalizado"
+    ]
+
+    genero_busca_normalizado = (
+        genero_busca.strip().lower()
+    )
+
+    for indice, distancia in zip(
+        indices,
+        distancias
+    ):
+
+        # Não recomendar o próprio livro
+        if indice == indice_livro:
+            continue
+
+        # Não recomendar título exatamente igual
+        if (
+            df.loc[
+                indice,
+                "titulo_normalizado"
+            ]
+            == titulo_original
+        ):
+            continue
+
+        # ----------------------------------------------------
+        # Verificar gênero
+        # ----------------------------------------------------
+
+        genero_livro = str(
+            df.loc[
+                indice,
+                "genero"
+            ]
+        ).lower()
+
+        if (
+            genero_busca_normalizado
+            in genero_livro
+        ):
+
+            bonus_genero = 1.0
+
+        else:
+
+            bonus_genero = 0.0
+
+
+        # ----------------------------------------------------
+        # Calcular métricas
+        # ----------------------------------------------------
+
+        similaridade_textual = (
+            1 - distancia
+        )
+
+        qualidade = df.loc[
+            indice,
+            "qualidade"
+        ]
+
+        popularidade = df.loc[
+            indice,
+            "popularidade"
+        ]
+
+
+        # ----------------------------------------------------
+        # Score híbrido
+        # ----------------------------------------------------
+
+        score_hibrido = (
+
+            similaridade_textual
+            * PESO_SIMILARIDADE
+
+            + qualidade
+            * PESO_QUALIDADE
+
+            + popularidade
+            * PESO_POPULARIDADE
+
+            + bonus_genero
+            * PESO_GENERO
+        )
+
+
+        candidatos.append({
+            "indice": indice,
+            "similaridade": similaridade_textual,
+            "qualidade": qualidade,
+            "popularidade": popularidade,
+            "bonus_genero": bonus_genero,
+            "score": score_hibrido
+        })
+
+
+    # --------------------------------------------------------
+    # Ordenar recomendações
+    # --------------------------------------------------------
+
+    candidatos = sorted(
+        candidatos,
+        key=lambda x: x["score"],
+        reverse=True
+    )
+
+
+    # --------------------------------------------------------
+    # Remover títulos duplicados
+    # --------------------------------------------------------
+
+    recomendacoes = []
+
+    titulos_vistos = set()
+
+    for candidato in candidatos:
+
+        indice = candidato["indice"]
+
+        titulo = df.loc[
+            indice,
+            "titulo_normalizado"
+        ]
+
+        if titulo in titulos_vistos:
+            continue
+
+        titulos_vistos.add(titulo)
+
+        recomendacoes.append(
+            candidato
+        )
+
+        if (
+            len(recomendacoes)
+            >= QUANTIDADE_RECOMENDACOES
+        ):
+            break
+
+
+    # ========================================================
+    # MOSTRAR RESULTADO
+    # ========================================================
+
+    print("\n" + "=" * 70)
+    print("LIVROS RECOMENDADOS")
+    print("=" * 70)
+
+    for posicao, recomendacao in enumerate(
+        recomendacoes,
+        start=1
+    ):
+
+        indice = recomendacao["indice"]
+
+        livro_rec = df.loc[indice]
+
+        print(
+            f"\n{posicao}. "
+            f"{livro_rec['title']}"
+        )
+
+        print(
+            f"   Autor: "
+            f"{livro_rec['authors']}"
+        )
+
+        print(
+            f"   Gênero: "
+            f"{livro_rec['genero']}"
+        )
+
+        print(
+            f"   Avaliação: "
+            f"{livro_rec['average_rating']:.2f}"
+        )
+
+        print(
+            f"   Similaridade: "
+            f"{recomendacao['similaridade']:.3f}"
+        )
+
+        print(
+            f"   Gênero corresponde: "
+            f"{'Sim' if recomendacao['bonus_genero'] > 0 else 'Não'}"
+        )
+
+        print(
+            f"   Score híbrido: "
+            f"{recomendacao['score']:.3f}"
+        )
+
+    print("\n" + "=" * 70)
+
+
+# ============================================================
+# 12. RECOMENDAÇÃO APENAS POR GÊNERO
+# ============================================================
+
+def recomendar_por_genero(
+    genero_busca
+):
+
+    resultados = encontrar_genero(
+        genero_busca
+    )
+
+    if resultados.empty:
+
+        print(
+            "\nNenhum livro encontrado "
+            "com esse gênero."
+        )
+
+        return
+
+
+    # --------------------------------------------------------
+    # Criar score por gênero
+    # --------------------------------------------------------
+
+    resultados = resultados.copy()
+
+    resultados["score_genero"] = (
+
+        resultados["qualidade"]
+        * 0.75
+
+        +
+
+        resultados["popularidade"]
+        * 0.25
+    )
+
+
+    resultados = resultados.sort_values(
+        "score_genero",
+        ascending=False
+    )
+
+
+    # ========================================================
+    # MOSTRAR RESULTADO
+    # ========================================================
+
+    print("\n" + "=" * 70)
+    print("RECOMENDAÇÕES POR GÊNERO")
+    print("=" * 70)
+
+    print(
+        f"Gênero informado: "
+        f"{genero_busca}"
+    )
+
+
+    titulos_vistos = set()
+
+    contador = 0
+
+    for _, livro in resultados.iterrows():
+
+        titulo = livro[
+            "titulo_normalizado"
+        ]
+
+        if titulo in titulos_vistos:
+            continue
+
+        titulos_vistos.add(titulo)
+
+        contador += 1
+
+        print(
+            f"\n{contador}. "
+            f"{livro['title']}"
+        )
+
+        print(
+            f"   Autor: "
+            f"{livro['authors']}"
+        )
+
+        print(
+            f"   Gênero: "
+            f"{livro['genero']}"
+        )
+
+        print(
+            f"   Avaliação: "
+            f"{livro['average_rating']:.2f}"
+        )
+
+        if contador >= QUANTIDADE_RECOMENDACOES:
+            break
+
+
+    print("\n" + "=" * 70)
+
+
+# ============================================================
+# 13. INTERFACE PARA O USUÁRIO
 # ============================================================
 
 while True:
 
     print("\n")
+
     titulo_usuario = input(
         "Qual livro você leu? "
     ).strip()
 
+
+    # --------------------------------------------------------
     # Encerrar
+    # --------------------------------------------------------
+
     if titulo_usuario.lower() in [
         "sair",
         "exit",
@@ -331,118 +745,336 @@ while True:
         break
 
 
+    # --------------------------------------------------------
     # Entrada vazia
+    # --------------------------------------------------------
+
     if not titulo_usuario:
 
-        print("Digite o nome de um livro.")
+        print(
+            "Digite o nome de um livro."
+        )
 
         continue
 
 
     # --------------------------------------------------------
-    # Procurar livro
+    # Procurar título
     # --------------------------------------------------------
 
-    resultados = encontrar_livro(
+    resultados_titulo = encontrar_livro(
         titulo_usuario
     )
 
 
-    if resultados.empty:
+    # --------------------------------------------------------
+    # Pedir gênero
+    # --------------------------------------------------------
+
+    genero_usuario = input(
+        "Qual é o gênero desse livro? "
+    ).strip()
+
+
+    # --------------------------------------------------------
+    # Encerrar
+    # --------------------------------------------------------
+
+    if genero_usuario.lower() in [
+        "sair",
+        "exit",
+        "quit"
+    ]:
+
+        print("\nSistema encerrado.")
+        break
+
+
+    # --------------------------------------------------------
+    # Entrada vazia
+    # --------------------------------------------------------
+
+    if not genero_usuario:
 
         print(
-            "\nNenhum livro encontrado "
-            "com esse título."
+            "Digite o gênero do livro."
         )
 
         continue
 
 
     # --------------------------------------------------------
-    # Apenas um resultado
+    # Procurar gênero
     # --------------------------------------------------------
 
-    if len(resultados) == 1:
-
-        indice_escolhido = resultados.index[0]
-
-        recomendar_livros_hibrido(
-            indice_escolhido
-        )
-
-        continue
-
-
-    # --------------------------------------------------------
-    # Vários resultados
-    # --------------------------------------------------------
-
-    print(
-        f"\nForam encontrados "
-        f"{len(resultados)} livros:"
+    resultados_genero = encontrar_genero(
+        genero_usuario
     )
 
-    opcoes = resultados.head(10)
 
-    for numero, (indice, livro) in enumerate(
-        opcoes.iterrows(),
-        start=1
+    # ========================================================
+    # CASO 1:
+    # TÍTULO E GÊNERO ENCONTRADOS
+    # ========================================================
+
+    if (
+        not resultados_titulo.empty
+        and not resultados_genero.empty
     ):
 
+        # ----------------------------------------------------
+        # Apenas um resultado para o título
+        # ----------------------------------------------------
+
+        if len(resultados_titulo) == 1:
+
+            indice_escolhido = (
+                resultados_titulo.index[0]
+            )
+
+            recomendar_por_titulo_e_genero(
+                indice_escolhido,
+                genero_usuario
+            )
+
+            continue
+
+
+        # ----------------------------------------------------
+        # Vários resultados para o título
+        # ----------------------------------------------------
+
         print(
-            f"{numero}. "
-            f"{livro['title']} "
-            f"- {livro['authors']}"
+            f"\nForam encontrados "
+            f"{len(resultados_titulo)} livros:"
         )
 
-
-    print("\nDigite 0 para voltar.")
-    print("Digite 'sair' para encerrar.")
+        opcoes = resultados_titulo.head(10)
 
 
-    while True:
+        for numero, (indice, livro) in enumerate(
+            opcoes.iterrows(),
+            start=1
+        ):
 
-        escolha = input(
-            "\nDigite o número do livro: "
-        ).strip()
-
-
-        # Sair
-        if escolha.lower() in [
-            "sair",
-            "exit",
-            "quit"
-        ]:
-
-            print("\nSistema encerrado.")
-            raise SystemExit
+            print(
+                f"{numero}. "
+                f"{livro['title']} "
+                f"- {livro['authors']}"
+            )
 
 
-        # Voltar
-        if escolha == "0":
+        print("\nDigite 0 para voltar.")
 
-            break
+        while True:
+
+            escolha = input(
+                "\nDigite o número do livro: "
+            ).strip()
 
 
-        # Escolha numérica
-        if escolha.isdigit():
+            if escolha.lower() in [
+                "sair",
+                "exit",
+                "quit"
+            ]:
 
-            numero = int(escolha)
-
-            if 1 <= numero <= len(opcoes):
-
-                indice_escolhido = opcoes.index[
-                    numero - 1
-                ]
-
-                recomendar_livros_hibrido(
-                    indice_escolhido
+                print(
+                    "\nSistema encerrado."
                 )
 
+                raise SystemExit
+
+
+            if escolha == "0":
                 break
 
 
+            if escolha.isdigit():
+
+                numero = int(escolha)
+
+                if (
+                    1 <= numero
+                    <= len(opcoes)
+                ):
+
+                    indice_escolhido = (
+                        opcoes.index[
+                            numero - 1
+                        ]
+                    )
+
+                    recomendar_por_titulo_e_genero(
+                        indice_escolhido,
+                        genero_usuario
+                    )
+
+                    break
+
+
+            print(
+                "Opção inválida. "
+                "Digite um número da lista."
+            )
+
+
+        continue
+
+
+    # ========================================================
+    # CASO 2:
+    # TÍTULO ENCONTRADO
+    # GÊNERO NÃO ENCONTRADO
+    # ========================================================
+
+    if not resultados_titulo.empty:
+
         print(
-            "Opção inválida. "
-            "Digite um número da lista."
+            "\nO título foi encontrado, "
+            "mas o gênero informado "
+            "não foi encontrado na base."
         )
+
+        print(
+            "Vamos recomendar usando "
+            "apenas o título."
+        )
+
+
+        # ----------------------------------------------------
+        # Apenas um resultado
+        # ----------------------------------------------------
+
+        if len(resultados_titulo) == 1:
+
+            indice_escolhido = (
+                resultados_titulo.index[0]
+            )
+
+            recomendar_livros_hibrido(
+                indice_escolhido
+            )
+
+            continue
+
+
+        # ----------------------------------------------------
+        # Vários resultados
+        # ----------------------------------------------------
+
+        print(
+            f"\nForam encontrados "
+            f"{len(resultados_titulo)} livros:"
+        )
+
+        opcoes = resultados_titulo.head(10)
+
+
+        for numero, (indice, livro) in enumerate(
+            opcoes.iterrows(),
+            start=1
+        ):
+
+            print(
+                f"{numero}. "
+                f"{livro['title']} "
+                f"- {livro['authors']}"
+            )
+
+
+        print("\nDigite 0 para voltar.")
+
+
+        while True:
+
+            escolha = input(
+                "\nDigite o número do livro: "
+            ).strip()
+
+
+            if escolha.lower() in [
+                "sair",
+                "exit",
+                "quit"
+            ]:
+
+                print(
+                    "\nSistema encerrado."
+                )
+
+                raise SystemExit
+
+
+            if escolha == "0":
+                break
+
+
+            if escolha.isdigit():
+
+                numero = int(escolha)
+
+                if (
+                    1 <= numero
+                    <= len(opcoes)
+                ):
+
+                    indice_escolhido = (
+                        opcoes.index[
+                            numero - 1
+                        ]
+                    )
+
+                    recomendar_livros_hibrido(
+                        indice_escolhido
+                    )
+
+                    break
+
+
+            print(
+                "Opção inválida. "
+                "Digite um número da lista."
+            )
+
+
+        continue
+
+
+    # ========================================================
+    # CASO 3:
+    # TÍTULO NÃO ENCONTRADO
+    # GÊNERO ENCONTRADO
+    # ========================================================
+
+    if (
+        resultados_titulo.empty
+        and not resultados_genero.empty
+    ):
+
+        print(
+            "\nO título não foi encontrado "
+            "na base."
+        )
+
+        print(
+            f"Mas encontramos livros "
+            f"do gênero '{genero_usuario}'."
+        )
+
+        recomendar_por_genero(
+            genero_usuario
+        )
+
+        continue
+
+
+    # ========================================================
+    # CASO 4:
+    # NEM TÍTULO NEM GÊNERO ENCONTRADOS
+    # ========================================================
+
+    print(
+        "\nNão encontramos o título "
+        "nem o gênero informado."
+    )
